@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oso Runner</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #87CEEB;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<audio id="backgroundMusic" loop>
+    <source src="https://www.soundjay.com/misc/sounds/mario-bros-theme-song.mp3" type="audio/mpeg">
+</audio>
+<audio id="jumpSound">
+    <source src="https://www.soundjay.com/misc/sounds/mario-jump-01.mp3" type="audio/mpeg">
+</audio>
+<audio id="honeySound">
+    <source src="https://www.soundjay.com/human/sounds/eating-chip-01.mp3" type="audio/mpeg">
+</audio>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const bearFrames = [
+    'https://i.postimg.cc/8kLnFnB4/photo-5934797904696949069-y-removebg-preview.png',
+    'https://i.postimg.cc/8kLnFnB4/photo-5934797904696949069-y-removebg-preview.png'
+];
+const obstacleImg = new Image();
+obstacleImg.src = 'https://i.postimg.cc/tJ043jC2/images-1-removebg-preview.png';
+const bgImg = new Image();
+bgImg.src = 'https://i.postimg.cc/BZ8hKTRh/piclumen-1741449981986.png';
+const honeyImg = new Image();
+honeyImg.src = 'https://i.postimg.cc/MKqMxvp5/images-1-removebg-preview-1.png';
+
+let currentFrame = 0;
+let frameTimer = 0;
+const player = {
+    x: canvas.width * 0.1,
+    y: canvas.height - 130,
+    width: canvas.width * 0.08,
+    height: canvas.height * 0.12,
+    vy: 0,
+    gravity: 0.8,
+    jumpPower: -15,
+    grounded: true,
+    canDoubleJump: true,
+    boostedJump: false,
+    isCrouching: false
+};
+const obstacles = [];
+const honeys = [];
+let scoreMiel = 0;
+let time = 0;
+let gameOver = false;
+
+document.addEventListener('keydown', e => {
+    if (!gameOver) {
+        if ((e.code === 'Space' || e.key === 'w' || e.code === 'ArrowUp') && (player.grounded || player.canDoubleJump)) {
+            if (player.grounded) {
+                player.vy = player.boostedJump ? -20 : player.jumpPower;
+                player.grounded = false;
+                player.canDoubleJump = true;
+                document.getElementById('jumpSound').play();
+            } else if (player.canDoubleJump) {
+                player.vy = player.boostedJump ? -20 : player.jumpPower;
+                player.canDoubleJump = false;
+                document.getElementById('jumpSound').play();
+            }
+        }
+        if ((e.key === 's' || e.code === 'ArrowDown') && player.grounded) {
+            player.isCrouching = true;
+            player.height = canvas.height * 0.06;
+            player.y = canvas.height - player.height - 30;
+        }
+    }
+    if (gameOver && e.code === 'Space') {
+        document.location.reload();
+    }
+});
+
+document.addEventListener('keyup', e => {
+    if ((e.key === 's' || e.code === 'ArrowDown') && player.grounded) {
+        player.isCrouching = false;
+        player.height = canvas.height * 0.12;
+        player.y = canvas.height - player.height - 30;
+    }
+});
+
+function createObstacle() {
+    const lastObstacle = obstacles[obstacles.length - 1];
+    const minDistance = canvas.width * 0.25;
+    if (!lastObstacle || lastObstacle.x + lastObstacle.width + minDistance < canvas.width) {
+        const isHighObstacle = Math.random() > 0.7;
+        const obstacleHeight = canvas.height * 0.12;
+        const obstacleY = isHighObstacle
+            ? canvas.height - obstacleHeight - 100
+            : canvas.height - obstacleHeight - 30;
+        const obstacle = {
+            x: canvas.width + Math.random() * 300 + 100,
+            y: obstacleY,
+            width: canvas.width * 0.06,
+            height: obstacleHeight
+        };
+        obstacles.push(obstacle);
+    }
+}
+setInterval(createObstacle, 1000);
+
+function createHoney() {
+    if (honeys.length >= 3) return;
+    const lastHoney = honeys[honeys.length - 1];
+    const minDistance = canvas.width * 0.4;
+    if (!lastHoney || lastHoney.x + lastHoney.width + minDistance < canvas.width) {
+        const honey = {
+            x: canvas.width + Math.random() * 600 + 300,
+            y: canvas.height - 130,
+            width: canvas.width * 0.05,
+            height: canvas.height * 0.07
+        };
+        const isSafe = obstacles.every(obstacle =>
+            Math.abs(honey.x - obstacle.x) > canvas.width * 0.2
+        );
+        if (isSafe) {
+            honeys.push(honey);
+        }
+    }
+}
+setInterval(createHoney, 4000);
+
+function update() {
+    if (gameOver) return;
+    time += 1 / 60;
+    frameTimer += 1 / 60;
+    if (frameTimer > 0.2) {
+        frameTimer = 0;
+        currentFrame = (currentFrame + 1) % bearFrames.length;
+    }
+    player.vy += player.gravity;
+    player.y += player.vy;
+    if (player.y + player.height >= canvas.height - 30) {
+        player.y = canvas.height - player.height - 30;
+        player.vy = 0;
+        player.grounded = true;
+    }
+    obstacles.forEach(obstacle => {
+        obstacle.x -= 8 + (time * 0.15);
+    });
+    while (obstacles.length && obstacles[0].x + obstacles[0].width < 0) {
+        obstacles.shift();
+        scoreMiel++;
+    }
+    honeys.forEach(honey => {
+        honey.x -= 8 + (time * 0.15);
+    });
+    while (honeys.length && honeys[0].x + honeys[0].width < 0) {
+        honeys.shift();
+    }
+    obstacles.forEach(obstacle => {
+        if (
+            player.x < obstacle.x + obstacle.width &&
+            player.x + player.width > obstacle.x &&
+            player.y < obstacle.y + obstacle.height &&
+            player.y + player.height > obstacle.y
+        ) {
+            gameOver = true;
+        }
+    });
+    honeys.forEach((honey, index) => {
+        if (
+            player.x < honey.x + honey.width &&
+            player.x + player.width > honey.x &&
+            player.y < honey.y + honey.height &&
+            player.y + player.height > honey.y
+        ) {
+            player.boostedJump = true;
+            scoreMiel++;
+            honeys.splice(index, 1);
+            document.getElementById('honeySound').play();
+        }
+    });
+}
+
+function draw() {
+    ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
+    obstacles.forEach(obstacle => {
+        ctx.drawImage(obstacleImg, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+    });
+    honeys.forEach(honey => {
+        ctx.drawImage(honeyImg, honey.x, honey.y, honey.width, honey.height);
+    });
+    const currentBearFrame = new Image();
+    currentBearFrame.src = bearFrames[currentFrame];
+    ctx.drawImage(currentBearFrame, player.x, player.y, player.width, player.height);
+    ctx.fillStyle = '#000';
+    ctx.font = `${Math.min(canvas.width, canvas.height) * 0.04}px Arial`;
+    ctx.textAlign = 'center';
+    const minutes = Math.floor(time / 60).toString().padStart(2, '0');
+    const seconds = Math.floor(time % 60).toString().padStart(2, '0');
+    ctx.fillText(`Time: ${minutes}:${seconds} | Honey Score: ${scoreMiel}`, canvas.width / 2, canvas.height * 0.05);
+    if (gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#FFF';
+        ctx.font = `${Math.min(canvas.width, canvas.height) * 0.08}px Arial`;
+        ctx.fillText('¡Game Over!', canvas.width / 2, canvas.height / 2);
+        ctx.font = `${Math.min(canvas.width, canvas.height) * 0.05}px Arial`;
+        ctx.fillText('Presiona ESPACIO para reiniciar', canvas.width / 2, canvas.height / 2 + canvas.height * 0.1);
+    }
+}
+
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    update();
+    draw();
+    if (!gameOver) requestAnimationFrame(gameLoop);
+}
+
+document.getElementById('backgroundMusic').play();
+
+Promise.all([
+    ...bearFrames.map(frame => new Promise(r => { const img = new Image(); img.src = frame; img.onload = r; })),
+    new Promise(r => obstacleImg.onload = r),
+    new Promise(r => bgImg.onload = r),
+    new Promise(r => honeyImg.onload = r)
+]).then(gameLoop);
+</script>
+</body>
+</html>
